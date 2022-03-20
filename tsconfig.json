@@ -1,11 +1,16 @@
 {
+  "extends": "@tsconfig/node14/tsconfig.json",
   "compilerOptions": {
-    "module": "commonjs",
+    // "module": "commonjs",
     "noImplicitAny": false,
     "removeComments": true,
     // "preserveConstEnums": true,
     // "outFile": "../../built/local/tsc.js",
-    // "sourceMap": true
+    // Generate d.ts files
+    "declaration": true,
+    "sourceMap": true,
+    "rootDir": "./src",
+    "outDir": "./dist"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "**/*.spec.ts"]
