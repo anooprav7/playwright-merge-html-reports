@@ -1,7 +1,7 @@
 # Merge Playwright HTML reports
 
 - Merge Playwright HTML reports to a single HTML report
-- Artifacts are copied from the source folders to the merged Report folder.
+- The `index.html` file is generated and other artifacts (screenshot, trace file etc) are copied from the source folders to the merged Report folder
 - Built on `node 14.18.1`.
 - Note: `@playwright/test` is a peer dependency, not a dev dependency.
 
@@ -42,7 +42,7 @@ mergeHTMLReports(inputReportPaths, config)
 
 ## Spec
 - TS support
-- 
+- Uses `jszip` and `yazl` for encoding and decoding zipped content from the `index.html` file.
 
 ## Upcoming features
 
