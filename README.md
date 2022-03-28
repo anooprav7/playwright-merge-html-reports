@@ -11,6 +11,10 @@
 
 ## Usage
 
+```bash
+npm install playwright-merge-html-reports --dev
+```
+
 - You will need to install `@playwright/test` package first (if not already done). 
 - In your Node.js script 
 ```js 
