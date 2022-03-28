@@ -50,6 +50,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
   let aggregateReportJson: HTMLReport | null = null;
 
   for (let reportDir of inputReportPaths) {
+    console.log(`Processing "${reportDir}"`)
     const indexHTMLContent = await readFile(reportDir + "/index.html", "utf8");
     const startIdx = indexHTMLContent.indexOf(b64StartSearchStr);
     const endIdx = indexHTMLContent.indexOf(b64EndSearchStr);
@@ -179,6 +180,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
       path.join(traceViewerTargetFolder, file)
     );
   }
+  console.log("Merged successfully")
 }
 
 // mergeHTMLReports([
