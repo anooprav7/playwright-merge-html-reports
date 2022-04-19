@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation.
  * Additions and modifications by Anoop Raveendran <https://github.com/anooprav7>
  * https://github.com/microsoft/playwright/blob/main/packages/playwright-test/src/reporters/html.ts
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import { JSZipObject } from "jszip";
 
 export type Location = {
   file: string;
@@ -59,4 +61,9 @@ export type HTMLReport = {
 export type Config = {
   outputFolderName?: string,
   outputBasePath?: string
+}
+
+export type ZipDataFile = {
+  relativePath: string;
+  file: JSZipObject,
 }

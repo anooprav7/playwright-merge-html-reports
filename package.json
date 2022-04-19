@@ -15,10 +15,9 @@
     "node": ">=12"
   },
   "scripts": {
-    "start": "ts-node ./src/merge-rep.ts",
-    "start-js": "node ./merge-reports.js",
+    "test": "ts-node --project=tsconfig.test.json ./src/merge-reports.spec.ts",
     "clean": "rm -rf dist/",
-    "merge-reports": "node ./dist/merge-reports.js",
+    "test:js": "node ./src/merge-reports.spec.js",
     "compile": "tsc",
     "build": "npm run clean && npm run compile",
     "show-merged-report": "playwright show-report merged-html-report"

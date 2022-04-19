@@ -10,7 +10,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  * @author Anoop Raveendran
  */
 
@@ -20,7 +20,7 @@ import path from "path";
 import JSZip from "jszip";
 import yazl from "yazl";
 import Base64Encoder from "./Base64Encoder";
-import type { HTMLReport, Config } from "./types";
+import type { HTMLReport, Config, ZipDataFile } from "./types";
 
 const SHOW_DEBUG_MESSAGES = false;
 
@@ -62,8 +62,13 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
 
     const zipData = Buffer.from(base64Str, "base64").toString("binary");
     const zipFile = await JSZip.loadAsync(zipData);
+    const zipDataFiles: ZipDataFile[] = [];
 
-    zipFile.forEach(async (relativePath, file) => {
+    zipFile.forEach((relativePath, file) => {
+      zipDataFiles.push({ relativePath, file });
+    })
+
+    await Promise.all(zipDataFiles.map(async ({ relativePath, file }) => {
       const fileContentString = await file.async("string");
       if (relativePath !== "report.json") {
         mergedZipContent.addBuffer(
@@ -89,7 +94,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
           ];
         }
       }
-    });
+    }));
 
     const contentFolderName = "data";
     const contentFolderPath = `${reportDir}/${contentFolderName}/`;
@@ -182,11 +187,6 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
   }
   console.log("Merged successfully")
 }
-
-// mergeHTMLReports([
-//   path.resolve(process.cwd(), "./html_report-1"),
-//   path.resolve(process.cwd(), "./html_report-2")
-// ]);
 
 export {
   mergeHTMLReports

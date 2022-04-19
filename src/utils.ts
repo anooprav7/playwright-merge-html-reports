@@ -1,3 +1,0 @@
-/**
- * Function to return array 
- */
