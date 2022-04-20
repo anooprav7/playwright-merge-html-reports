@@ -46,3 +46,44 @@ export declare type ZipDataFile = {
     relativePath: string;
     file: JSZipObject;
 };
+export interface FileReport {
+    fileId: string;
+    fileName: string;
+    tests: TestsEntity[];
+}
+export interface TestsEntity {
+    testId: string;
+    title: string;
+    projectName: string;
+    location: Location;
+    duration: number;
+    annotations?: unknown[];
+    outcome: string;
+    path?: string[];
+    results?: ResultsEntity[];
+    ok: boolean;
+}
+export interface ResultsEntity {
+    duration: number;
+    startTime: string;
+    retry: number;
+    steps?: Step[];
+    errors?: string[];
+    status: string;
+    attachments?: AttachmentsEntity[];
+}
+export interface Step {
+    title: string;
+    startTime: string;
+    duration: number;
+    steps?: Step[];
+    count: number;
+    snippet?: string;
+    location?: Location;
+    error?: string;
+}
+export interface AttachmentsEntity {
+    name: string;
+    contentType: string;
+    path: string;
+}

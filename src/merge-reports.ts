@@ -20,7 +20,7 @@ import path from "path";
 import JSZip from "jszip";
 import yazl from "yazl";
 import Base64Encoder from "./Base64Encoder";
-import type { HTMLReport, Config, ZipDataFile } from "./types";
+import type { HTMLReport, Config, ZipDataFile, Stats, FileReport } from "./types";
 
 const SHOW_DEBUG_MESSAGES = false;
 
@@ -44,6 +44,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
   let mergedZipContent = new yazl.ZipFile();
   let aggregateReportJson: HTMLReport | null = null;
   let baseIndexHtml = '';
+  const fileReportMap = new Map<string, FileReport>();
 
   for (let reportDir of inputReportPaths) {
     console.log(`Processing "${reportDir}"`)
@@ -67,10 +68,22 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
     await Promise.all(zipDataFiles.map(async ({ relativePath, file }) => {
       const fileContentString = await file.async("string");
       if (relativePath !== "report.json") {
-        mergedZipContent.addBuffer(
-          Buffer.from(fileContentString),
-          relativePath
-        );
+        const fileReportJson = JSON.parse(fileContentString) as FileReport;
+
+        if (fileReportMap.has(relativePath)) {
+          if (SHOW_DEBUG_MESSAGES) {
+            console.log('Merging duplicate file report: ' + relativePath);
+          }
+
+          const existingReport = fileReportMap.get(relativePath);
+
+          if (existingReport?.fileId !== fileReportJson.fileId) throw new Error('Error: collision with file ids in two file reports')
+
+          existingReport.tests.push(...fileReportJson.tests);
+        } else {
+          fileReportMap.set(relativePath, fileReportJson);
+        }
+
       } else {
         const currentReportJson = JSON.parse(fileContentString);
         if (SHOW_DEBUG_MESSAGES) {
@@ -79,16 +92,25 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
         }
         if (!aggregateReportJson) aggregateReportJson = currentReportJson;
         else {
-          aggregateReportJson.files.push(...currentReportJson.files);
-          Object.keys(aggregateReportJson.stats).forEach((key) => {
-            aggregateReportJson!.stats[key] += currentReportJson.stats[key];
-          });
-          aggregateReportJson.projectNames = [
-            ...new Set([
-              ...aggregateReportJson.projectNames,
-              ...currentReportJson.projectNames
-            ])
-          ];
+          currentReportJson.files.forEach((file) => {
+            const existingGroup = aggregateReportJson?.files.find(({ fileId }) => fileId === file.fileId);
+
+            if (existingGroup) {
+              existingGroup.tests.push(...file.tests);
+              mergeStats(existingGroup.stats, file.stats);
+            } else {
+              aggregateReportJson?.files.push(file);
+            }
+          })
+
+         mergeStats(aggregateReportJson.stats, currentReportJson.stats);
+
+         aggregateReportJson.projectNames = [
+           ...new Set([
+             ...aggregateReportJson.projectNames,
+             ...currentReportJson.projectNames
+           ])
+         ];
         }
       }
     }));
@@ -130,6 +152,13 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
 
   if (!baseIndexHtml) throw new Error('Base report index.html not found');
 
+  fileReportMap.forEach((fileReport, relativePath) => {
+     mergedZipContent.addBuffer(
+       Buffer.from(JSON.stringify(fileReport)),
+       relativePath,
+     );
+   })
+
   mergedZipContent.addBuffer(
     Buffer.from(JSON.stringify(aggregateReportJson)),
     "report.json"
@@ -154,9 +183,19 @@ window.playwrightReportBase64 = "data:application/zip;base64,`)
   });
 
   await appendFile(indexFilePath, '";</script>');
-  console.log("Merged successfully")
+  console.log(`Successfully merged ${inputReportPaths.length} report${inputReportPaths.length === 1 ? '' : 's'}`);
 }
 
 export {
   mergeHTMLReports
+}
+
+function mergeStats(base: Stats, added: Stats) {
+  base.total += added.total;
+  base.expected += added.expected;
+  base.unexpected += added.unexpected;
+  base.flaky += added.flaky;
+  base.skipped += added.skipped;
+  base.duration += added.duration;
+  base.ok = base.ok && added.ok;
 }
