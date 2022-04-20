@@ -26,6 +26,7 @@ async function mergeHTMLReports(inputReportPaths, givenConfig = {}) {
     let mergedZipContent = new yazl_1.default.ZipFile();
     let aggregateReportJson = null;
     let baseIndexHtml = '';
+    const fileReportMap = new Map();
     for (let reportDir of inputReportPaths) {
         console.log(`Processing "${reportDir}"`);
         const indexHTMLContent = await (0, promises_1.readFile)(reportDir + "/index.html", "utf8");
@@ -44,7 +45,19 @@ async function mergeHTMLReports(inputReportPaths, givenConfig = {}) {
         await Promise.all(zipDataFiles.map(async ({ relativePath, file }) => {
             const fileContentString = await file.async("string");
             if (relativePath !== "report.json") {
-                mergedZipContent.addBuffer(Buffer.from(fileContentString), relativePath);
+                const fileReportJson = JSON.parse(fileContentString);
+                if (fileReportMap.has(relativePath)) {
+                    if (SHOW_DEBUG_MESSAGES) {
+                        console.log('Merging duplicate file report: ' + relativePath);
+                    }
+                    const existingReport = fileReportMap.get(relativePath);
+                    if (existingReport?.fileId !== fileReportJson.fileId)
+                        throw new Error('Error: collision with file ids in two file reports');
+                    existingReport.tests.push(...fileReportJson.tests);
+                }
+                else {
+                    fileReportMap.set(relativePath, fileReportJson);
+                }
             }
             else {
                 const currentReportJson = JSON.parse(fileContentString);
@@ -55,10 +68,17 @@ async function mergeHTMLReports(inputReportPaths, givenConfig = {}) {
                 if (!aggregateReportJson)
                     aggregateReportJson = currentReportJson;
                 else {
-                    aggregateReportJson.files.push(...currentReportJson.files);
-                    Object.keys(aggregateReportJson.stats).forEach((key) => {
-                        aggregateReportJson.stats[key] += currentReportJson.stats[key];
+                    currentReportJson.files.forEach((file) => {
+                        const existingGroup = aggregateReportJson?.files.find(({ fileId }) => fileId === file.fileId);
+                        if (existingGroup) {
+                            existingGroup.tests.push(...file.tests);
+                            mergeStats(existingGroup.stats, file.stats);
+                        }
+                        else {
+                            aggregateReportJson?.files.push(file);
+                        }
                     });
+                    mergeStats(aggregateReportJson.stats, currentReportJson.stats);
                     aggregateReportJson.projectNames = [
                         ...new Set([
                             ...aggregateReportJson.projectNames,
@@ -96,6 +116,9 @@ async function mergeHTMLReports(inputReportPaths, givenConfig = {}) {
     }
     if (!baseIndexHtml)
         throw new Error('Base report index.html not found');
+    fileReportMap.forEach((fileReport, relativePath) => {
+        mergedZipContent.addBuffer(Buffer.from(JSON.stringify(fileReport)), relativePath);
+    });
     mergedZipContent.addBuffer(Buffer.from(JSON.stringify(aggregateReportJson)), "report.json");
     if (SHOW_DEBUG_MESSAGES) {
         console.log('---------- aggregateReportJson ----------');
@@ -113,7 +136,16 @@ window.playwrightReportBase64 = "data:application/zip;base64,`);
         });
     });
     await (0, promises_1.appendFile)(indexFilePath, '";</script>');
-    console.log("Merged successfully");
+    console.log(`Successfully merged ${inputReportPaths.length} report${inputReportPaths.length === 1 ? '' : 's'}`);
 }
 exports.mergeHTMLReports = mergeHTMLReports;
+function mergeStats(base, added) {
+    base.total += added.total;
+    base.expected += added.expected;
+    base.unexpected += added.unexpected;
+    base.flaky += added.flaky;
+    base.skipped += added.skipped;
+    base.duration += added.duration;
+    base.ok = base.ok && added.ok;
+}
 //# sourceMappingURL=merge-reports.js.map
