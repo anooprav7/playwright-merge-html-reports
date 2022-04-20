@@ -14,8 +14,8 @@
  * @author Anoop Raveendran
  */
 
-import { createWriteStream } from "fs";
-import { mkdir, readFile, readdir, copyFile, appendFile } from "fs/promises";
+import { createWriteStream, existsSync } from "fs";
+import { mkdir, readFile, readdir, copyFile, appendFile, writeFile } from "fs/promises";
 import path from "path";
 import JSZip from "jszip";
 import yazl from "yazl";
@@ -29,6 +29,8 @@ const defaultConfig = {
   outputBasePath: process.cwd()
 }
 
+const re = /<script>\nwindow\.playwrightReportBase64\s=\s"data:application\/zip;base64,(.+)<\/script>/
+
 async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config = {}) {
   if(!Array.isArray(inputReportPaths) || inputReportPaths.length < 1) {
     console.log("No Input paths provided")
@@ -37,28 +39,22 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
 
   // Merge config with default values
   const { outputFolderName, outputBasePath } = {...defaultConfig, ...givenConfig};
-
-  const b64StartSearchStr = `window.playwrightReportBase64 = "data:application/zip;base64,`;
-  const b64EndSearchStr = `";</script>`;
-
   const outputPath = path.resolve(outputBasePath, `./${outputFolderName}`);
-
-  await mkdir(outputPath + "/trace", { recursive: true });
-  await mkdir(outputPath + "/data", { recursive: true });
 
   let mergedZipContent = new yazl.ZipFile();
   let aggregateReportJson: HTMLReport | null = null;
+  let baseIndexHtml = '';
 
   for (let reportDir of inputReportPaths) {
     console.log(`Processing "${reportDir}"`)
     const indexHTMLContent = await readFile(reportDir + "/index.html", "utf8");
-    const startIdx = indexHTMLContent.indexOf(b64StartSearchStr);
-    const endIdx = indexHTMLContent.indexOf(b64EndSearchStr);
+    const [, base64Str] = re.exec(indexHTMLContent) ?? [];
 
-    const base64Str = indexHTMLContent.substring(
-      startIdx + b64StartSearchStr.length,
-      endIdx
-    );
+    if (!base64Str) throw new Error('index.html does not contain report data');
+
+    if (!baseIndexHtml) {
+      baseIndexHtml = indexHTMLContent.replace(re, '');
+    }
 
     const zipData = Buffer.from(base64Str, "base64").toString("binary");
     const zipFile = await JSZip.loadAsync(zipData);
@@ -78,6 +74,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
       } else {
         const currentReportJson = JSON.parse(fileContentString);
         if (SHOW_DEBUG_MESSAGES) {
+          console.log('---------- report.json ----------');
           console.log(JSON.stringify(currentReportJson, null, 2));
         }
         if (!aggregateReportJson) aggregateReportJson = currentReportJson;
@@ -98,27 +95,31 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
 
     const contentFolderName = "data";
     const contentFolderPath = `${reportDir}/${contentFolderName}/`;
-    const contentFiles = await readdir(contentFolderPath);
 
-    await Promise.all(
-      contentFiles.map(async (fileName) => {
-        const srcPath = path.resolve(
-          process.cwd(),
-          `${contentFolderPath}${fileName}`
-        );
-        const destPath = `${outputPath}/${contentFolderName}/${fileName}`;
-        if (SHOW_DEBUG_MESSAGES) {
-          console.log({
-            srcPath,
-            destPath
-          });
-        }
-        await copyFile(srcPath, destPath);
-        if (SHOW_DEBUG_MESSAGES) {
-          console.log(fileName);
-        }
-      })
-    );
+    if (existsSync(contentFolderPath)) {
+      await mkdir(outputPath + "/data", { recursive: true });
+      const contentFiles = await readdir(contentFolderPath);
+
+      await Promise.all(
+        contentFiles.map(async (fileName) => {
+          const srcPath = path.resolve(
+            process.cwd(),
+            `${contentFolderPath}${fileName}`
+          );
+          const destPath = `${outputPath}/${contentFolderName}/${fileName}`;
+          if (SHOW_DEBUG_MESSAGES) {
+            console.log({
+              srcPath,
+              destPath
+            });
+          }
+          await copyFile(srcPath, destPath);
+          if (SHOW_DEBUG_MESSAGES) {
+            console.log(fileName);
+          }
+        })
+      );
+    }
 
     if (SHOW_DEBUG_MESSAGES) {
       console.log({
@@ -127,64 +128,32 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
     }
   }
 
+  if (!baseIndexHtml) throw new Error('Base report index.html not found');
+
   mergedZipContent.addBuffer(
     Buffer.from(JSON.stringify(aggregateReportJson)),
     "report.json"
   );
 
   if (SHOW_DEBUG_MESSAGES) {
+    console.log('---------- aggregateReportJson ----------');
     console.log(JSON.stringify(aggregateReportJson, null, 2));
   }
 
-  const appFolder = path.join(
-    require.resolve("@playwright/test"),
-    "..",
-    "node_modules",
-    "playwright-core",
-    "lib",
-    "webpack",
-    "htmlReport"
-  );
-  await copyFile(
-    path.join(appFolder, "index.html"),
-    path.join(outputPath, "index.html")
-  );
-
-  const indexFile = path.join(outputPath, "index.html");
-  await appendFile(
-    indexFile,
-    '<script>\nwindow.playwrightReportBase64 = "data:application/zip;base64,'
-  );
+  const indexFilePath = path.join(outputPath, "index.html");
+  await writeFile(indexFilePath, baseIndexHtml + `<script>
+window.playwrightReportBase64 = "data:application/zip;base64,`)
 
   await new Promise((f) => {
     mergedZipContent.end(undefined, () => {
       mergedZipContent.outputStream
         .pipe(new Base64Encoder())
-        .pipe(createWriteStream(indexFile, { flags: "a" }))
+        .pipe(createWriteStream(indexFilePath, { flags: "a" }))
         .on("close", f);
     });
   });
 
-  await appendFile(indexFile, '";</script>');
-
-  const traceViewerFolder = path.join(
-    require.resolve("@playwright/test"),
-    "..",
-    "node_modules",
-    "playwright-core",
-    "lib",
-    "webpack",
-    "traceViewer"
-  );
-  const traceViewerTargetFolder = path.join(outputPath, "trace");
-  await mkdir(traceViewerTargetFolder, { recursive: true });
-  for (const file of await readdir(traceViewerFolder)) {
-    if (file.endsWith(".map")) continue;
-    await copyFile(
-      path.join(traceViewerFolder, file),
-      path.join(traceViewerTargetFolder, file)
-    );
-  }
+  await appendFile(indexFilePath, '";</script>');
   console.log("Merged successfully")
 }
 
