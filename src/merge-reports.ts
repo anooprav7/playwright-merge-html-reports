@@ -93,7 +93,13 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
 
     const contentFolderName = "data";
     const contentFolderPath = `${reportDir}/${contentFolderName}/`;
-    const contentFiles = await readdir(contentFolderPath);
+    let contentFiles = [];
+    
+    try {
+      await readdir(contentFolderPath);
+    } catch (e) {
+      // No-op
+    }
 
     await Promise.all(
       contentFiles.map(async (fileName) => {
@@ -132,10 +138,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
   }
 
   const appFolder = path.join(
-    require.resolve("@playwright/test"),
-    "..",
-    "node_modules",
-    "playwright-core",
+    path.dirname(require.resolve("playwright-core")),
     "lib",
     "webpack",
     "htmlReport"
@@ -163,10 +166,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
   await appendFile(indexFile, '";</script>');
 
   const traceViewerFolder = path.join(
-    require.resolve("@playwright/test"),
-    "..",
-    "node_modules",
-    "playwright-core",
+    path.dirname(require.resolve("playwright-core")),
     "lib",
     "webpack",
     "traceViewer"
