@@ -1,6 +1,6 @@
 {
   "name": "playwright-merge-html-reports",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Merge Playwright HTML reports",
   "homepage": "https://github.com/anooprav7/playwright-merge-html-reports#readme",
   "bugs": {
