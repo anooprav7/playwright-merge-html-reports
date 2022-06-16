@@ -22,3 +22,8 @@ mergeHTMLReports([
   path.resolve(process.cwd(), "./html_report-1"),
   path.resolve(process.cwd(), "./html_report-2")
 ]);
+
+mergeHTMLReports([
+  path.resolve(process.cwd(), "./html_report-4"),
+  path.resolve(process.cwd(), "./html_report-5")
+], { outputFolderName: './test-merge-report' });
