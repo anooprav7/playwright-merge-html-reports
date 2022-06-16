@@ -18,6 +18,7 @@ const defaultConfig = {
 };
 const re = /<script>\nwindow\.playwrightReportBase64\s=\s"data:application\/zip;base64,(.+)<\/script>/;
 async function mergeHTMLReports(inputReportPaths, givenConfig = {}) {
+    var _a;
     if (!Array.isArray(inputReportPaths) || inputReportPaths.length < 1) {
         console.log("No Input paths provided");
         process.exit(1);
@@ -43,7 +44,7 @@ async function mergeHTMLReports(inputReportPaths, givenConfig = {}) {
     for (let reportDir of inputReportPaths) {
         console.log(`Processing "${reportDir}"`);
         const indexHTMLContent = await (0, promises_1.readFile)(reportDir + "/index.html", "utf8");
-        const [, base64Str] = re.exec(indexHTMLContent) ?? [];
+        const [, base64Str] = (_a = re.exec(indexHTMLContent)) !== null && _a !== void 0 ? _a : [];
         if (!base64Str)
             throw new Error('index.html does not contain report data');
         if (!baseIndexHtml) {
@@ -64,7 +65,7 @@ async function mergeHTMLReports(inputReportPaths, givenConfig = {}) {
                         console.log('Merging duplicate file report: ' + relativePath);
                     }
                     const existingReport = fileReportMap.get(relativePath);
-                    if (existingReport?.fileId !== fileReportJson.fileId)
+                    if ((existingReport === null || existingReport === void 0 ? void 0 : existingReport.fileId) !== fileReportJson.fileId)
                         throw new Error('Error: collision with file ids in two file reports');
                     existingReport.tests.push(...fileReportJson.tests);
                 }
@@ -82,13 +83,13 @@ async function mergeHTMLReports(inputReportPaths, givenConfig = {}) {
                     aggregateReportJson = currentReportJson;
                 else {
                     currentReportJson.files.forEach((file) => {
-                        const existingGroup = aggregateReportJson?.files.find(({ fileId }) => fileId === file.fileId);
+                        const existingGroup = aggregateReportJson === null || aggregateReportJson === void 0 ? void 0 : aggregateReportJson.files.find(({ fileId }) => fileId === file.fileId);
                         if (existingGroup) {
                             existingGroup.tests.push(...file.tests);
                             mergeStats(existingGroup.stats, file.stats);
                         }
                         else {
-                            aggregateReportJson?.files.push(file);
+                            aggregateReportJson === null || aggregateReportJson === void 0 ? void 0 : aggregateReportJson.files.push(file);
                         }
                     });
                     mergeStats(aggregateReportJson.stats, currentReportJson.stats);
