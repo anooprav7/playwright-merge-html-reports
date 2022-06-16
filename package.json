@@ -15,7 +15,7 @@
     "node": ">=12"
   },
   "scripts": {
-    "test": "rm -fr merged-html-report && ts-node --project=tsconfig.test.json ./src/merge-reports.spec.ts",
+    "test": "ts-node --project=tsconfig.test.json ./src/merge-reports.spec.ts",
     "clean": "rm -rf dist/",
     "test:js": "node ./src/merge-reports.spec.js",
     "compile": "tsc",
