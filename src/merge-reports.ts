@@ -15,18 +15,18 @@
  */
 
 import { createWriteStream, existsSync } from "fs";
-import { mkdir, readFile, readdir, copyFile, appendFile, writeFile } from "fs/promises";
+import { mkdir, readFile, readdir, copyFile, appendFile, writeFile, rm } from "fs/promises";
 import path from "path";
 import JSZip from "jszip";
 import yazl from "yazl";
 import Base64Encoder from "./Base64Encoder";
 import type { HTMLReport, Config, ZipDataFile, Stats, FileReport } from "./types";
 
-const SHOW_DEBUG_MESSAGES = false;
-
-const defaultConfig = {
+const defaultConfig: Required<Config> = {
   outputFolderName: "merged-html-report",
-  outputBasePath: process.cwd()
+  outputBasePath: process.cwd(),
+  overwriteExisting: true,
+  debug: false,
 }
 
 const re = /<script>\nwindow\.playwrightReportBase64\s=\s"data:application\/zip;base64,(.+)<\/script>/
@@ -38,8 +38,20 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
   }
 
   // Merge config with default values
-  const { outputFolderName, outputBasePath } = {...defaultConfig, ...givenConfig};
+  const { outputFolderName, outputBasePath, overwriteExisting, debug } = {...defaultConfig, ...givenConfig};
   const outputPath = path.resolve(outputBasePath, `./${outputFolderName}`);
+
+  if (existsSync(outputPath)) {
+    if (overwriteExisting) {
+      if (debug) {
+        console.log('Cleaning output directory');
+      }
+      await rm(outputPath, { recursive: true, force: true })
+    } else {
+      throw new Error(`Report merge aborted. Output directory already exists and overwriteExisting set to false.\n
+    path: ${outputPath}\n`)
+    }
+  }
 
   let mergedZipContent = new yazl.ZipFile();
   let aggregateReportJson: HTMLReport | null = null;
@@ -71,7 +83,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
         const fileReportJson = JSON.parse(fileContentString) as FileReport;
 
         if (fileReportMap.has(relativePath)) {
-          if (SHOW_DEBUG_MESSAGES) {
+          if (debug) {
             console.log('Merging duplicate file report: ' + relativePath);
           }
 
@@ -86,7 +98,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
 
       } else {
         const currentReportJson = JSON.parse(fileContentString);
-        if (SHOW_DEBUG_MESSAGES) {
+        if (debug) {
           console.log('---------- report.json ----------');
           console.log(JSON.stringify(currentReportJson, null, 2));
         }
@@ -116,34 +128,23 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
     }));
 
     const contentFolderName = "data";
-    const contentFolderPath = `${reportDir}/${contentFolderName}/`;
+    const contentFolderPath = path.join(reportDir, contentFolderName);
+    const contentOuputPath = path.join(outputPath, contentFolderName);
 
     if (existsSync(contentFolderPath)) {
-      await mkdir(outputPath + "/data", { recursive: true });
-      const contentFiles = await readdir(contentFolderPath);
-
-      await Promise.all(
-        contentFiles.map(async (fileName) => {
-          const srcPath = path.resolve(
-            process.cwd(),
-            `${contentFolderPath}${fileName}`
-          );
-          const destPath = `${outputPath}/${contentFolderName}/${fileName}`;
-          if (SHOW_DEBUG_MESSAGES) {
-            console.log({
-              srcPath,
-              destPath
-            });
-          }
-          await copyFile(srcPath, destPath);
-          if (SHOW_DEBUG_MESSAGES) {
-            console.log(fileName);
-          }
-        })
-      );
+      await copyDir(contentFolderPath, contentOuputPath, debug);
     }
 
-    if (SHOW_DEBUG_MESSAGES) {
+    const traceFolderName = "trace";
+    const traceFolderPath = path.join(reportDir, traceFolderName);
+    const traceOuputPath = path.join(outputPath, traceFolderName);
+
+    // only need to copy trace applicate dir once if needed
+    if (existsSync(traceFolderPath) && !existsSync(traceOuputPath)) {
+      await copyDir(traceFolderPath, traceOuputPath, debug);
+    }
+
+    if (debug) {
       console.log({
         reportDir
       });
@@ -164,7 +165,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
     "report.json"
   );
 
-  if (SHOW_DEBUG_MESSAGES) {
+  if (debug) {
     console.log('---------- aggregateReportJson ----------');
     console.log(JSON.stringify(aggregateReportJson, null, 2));
   }
@@ -198,4 +199,28 @@ function mergeStats(base: Stats, added: Stats) {
   base.skipped += added.skipped;
   base.duration += added.duration;
   base.ok = base.ok && added.ok;
+}
+
+async function copyDir(srcDirPath: string, srcDirOutputPath: string, debug: boolean) {
+  await mkdir(srcDirOutputPath, { recursive: true });
+      const traceFiles = await readdir(srcDirPath);
+      await Promise.all(
+        traceFiles.map(async (fileName) => {
+          const srcPath = path.resolve(
+            process.cwd(),
+            path.join(srcDirPath,fileName)
+          );
+          const destPath = path.join(srcDirOutputPath, fileName);
+          if (debug) {
+            console.log({
+              srcPath,
+              destPath
+            });
+          }
+          await copyFile(srcPath, destPath);
+          if (debug) {
+            console.log(fileName);
+          }
+        })
+      );
 }
