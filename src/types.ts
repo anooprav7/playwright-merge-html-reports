@@ -61,6 +61,8 @@ export type HTMLReport = {
 export type Config = {
   outputFolderName?: string,
   outputBasePath?: string
+  overwriteExisting?: boolean
+  debug?: boolean,
 }
 
 export type ZipDataFile = {
