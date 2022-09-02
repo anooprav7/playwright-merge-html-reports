@@ -51,6 +51,8 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
       throw new Error(`Report merge aborted. Output directory already exists and overwriteExisting set to false.\n
     path: ${outputPath}\n`)
     }
+  } else {
+    await mkdir(outputPath, { recursive: true });
   }
 
   let mergedZipContent = new yazl.ZipFile();
