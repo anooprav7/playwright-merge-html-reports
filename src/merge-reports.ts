@@ -171,6 +171,7 @@ async function mergeHTMLReports(inputReportPaths: string[], givenConfig: Config 
   }
 
   const indexFilePath = path.join(outputPath, "index.html");
+  await mkdir(path.dirname(indexFilePath), { recursive: true });
   await writeFile(indexFilePath, baseIndexHtml + `<script>
 window.playwrightReportBase64 = "data:application/zip;base64,`)
 
