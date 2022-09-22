@@ -1,3 +1,5 @@
+# This repository has moved. [Please use the new location](https://github.com/Rippling/playwright-merge-html-reports)
+
 # Merge Playwright HTML reports
 
 - Merge Playwright HTML reports to a single HTML report
